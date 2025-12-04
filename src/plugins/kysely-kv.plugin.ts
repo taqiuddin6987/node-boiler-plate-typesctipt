@@ -1,0 +1,160 @@
+import type { FastifyInstance } from 'fastify';
+import type { Kysely } from 'kysely';
+import fastifyPlugin from 'fastify-plugin';
+import { sql } from 'kysely';
+
+function getTableQuery(
+  table: string,
+  useUnloggedTable: boolean,
+  schema: string,
+) {
+  const schemaTable = `"${schema}"."${table}"`;
+  return sql`
+    CREATE ${useUnloggedTable ? sql.raw('UNLOGGED ') : sql.raw('')}TABLE IF NOT EXISTS ${sql.raw(schemaTable)} (
+      key text PRIMARY KEY,
+      value text NOT NULL,
+      expires_at timestamptz NULL
+    )
+  `;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    kvStore: {
+      del: (keys: string | string[]) => Promise<void>;
+      get: <T = unknown>(key: string) => Promise<T | null>;
+      keys: (pattern: string) => Promise<string[]>;
+      set: <T = unknown>(
+        key: string,
+        value: T,
+        ttlMs?: number,
+      ) => Promise<void>;
+    };
+  }
+  interface FastifyRequest {
+    kvStore: {
+      del: (keys: string | string[]) => Promise<void>;
+      get: <T = unknown>(key: string) => Promise<T | null>;
+      keys: (pattern: string) => Promise<string[]>;
+      set: <T = unknown>(
+        key: string,
+        value: T,
+        ttlMs?: number,
+      ) => Promise<void>;
+    };
+  }
+}
+export interface FastifyKyselyKVStoreOptions {
+  schema?: string;
+  table: string;
+  useUnloggedTable?: boolean;
+}
+async function fastifyKyselyKVStore(
+  fastify: FastifyInstance,
+  options: FastifyKyselyKVStoreOptions,
+) {
+  const schema = options.schema ?? 'public';
+  const table = options.table;
+  const useUnloggedTable = options.useUnloggedTable ?? false;
+
+  if (!('kysely' in fastify)) {
+    throw new Error(
+      '[fastify-kysely-kv-store] fastify.kysely not found. '
+      + 'Make sure to register fastify-kysely before this plugin.',
+    );
+  }
+
+  const database = fastify.kysely as Kysely<any>;
+
+  const tableExists = await database
+    .selectFrom('information_schema.tables')
+    .select('table_name')
+    .where('table_schema', '=', schema)
+    .where('table_name', '=', table)
+    .executeTakeFirst();
+
+  if (!tableExists) {
+    await getTableQuery(table, useUnloggedTable, schema).execute(database);
+  }
+
+  const kvStore = {
+    async del(keys: string | string[]): Promise<void> {
+      const keysArray = Array.isArray(keys) ? keys : [keys];
+      if (keysArray.length === 0)
+        return;
+
+      await database
+        .withSchema(schema)
+        .deleteFrom(table)
+        .where('key', 'in', keysArray)
+        .execute();
+    },
+
+    async get<T = unknown>(key: string): Promise<T | null> {
+      const row = await database
+        .withSchema(schema)
+        .selectFrom(table)
+        .select(['value', 'expiresAt'])
+        .where('key', '=', key)
+        .executeTakeFirst();
+
+      if (!row)
+        return null;
+
+      if (row.expiresAt && new Date(row.expiresAt) < new Date()) {
+        await kvStore.del(key);
+        return null;
+      }
+
+      try {
+        const stringifiedJson = row.value;
+        return JSON.parse(stringifiedJson);
+      }
+      catch {
+        await kvStore.del(key);
+        return null;
+      }
+    },
+
+    async keys(pattern: string): Promise<string[]> {
+      const sqlPattern = pattern.replaceAll('*', '%');
+
+      const rows = await database
+        .withSchema(schema)
+        .selectFrom(table)
+        .select('key')
+        .where('key', 'like', sqlPattern)
+        .execute();
+
+      return rows.map(r => r.key);
+    },
+
+    async set<T = unknown>(
+      key: string,
+      value: T,
+      ttlMs?: number,
+    ): Promise<void> {
+      const stringifiedJson = JSON.stringify(value);
+      const expiresAt = ttlMs ? new Date(Date.now() + ttlMs) : null;
+
+      await database
+        .withSchema(schema)
+        .insertInto(table)
+        .values({ expiresAt, key, value: stringifiedJson })
+        .onConflict(oc =>
+          oc.column('key').doUpdateSet({ expiresAt, value: stringifiedJson }),
+        )
+        .execute();
+    },
+  };
+
+  fastify.decorate('kvStore', kvStore);
+  fastify.addHook('onRequest', async (request) => {
+    request.kvStore = fastify.kvStore;
+  });
+}
+
+export default fastifyPlugin(fastifyKyselyKVStore, {
+  dependencies: ['fastify-kysely'],
+  name: 'fastify-kysely-kv-store',
+});
