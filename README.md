@@ -152,19 +152,18 @@ A clean, scalable, and production-ready **Fastify (v5) + PostgreSQL + Kysely ORM
     ├── texts/
     └── others/
 ```
+
 ---
 
 ## ⚙️ Environment Setup
 
-Create `.env` file:
-
+```
 PORT=5000
 NODE_ENV=development
-
 DATABASE_URL=postgres://username:password@localhost:5432/dbname
-
 JWT_SECRET=your-secret-key
 JWT_EXPIRES_IN=1d
+```
 
 ---
 
@@ -175,37 +174,70 @@ JWT_EXPIRES_IN=1d
 npm install
 npm run start:dev
 npm start
+```
 
-🗄️ Database (Kysely ORM)
+### 🗄️ Database (Kysely ORM)
+```bash
 npm run migrate:latest
 npm run migrate:rollback
 npm run migrate:make
 npm run seed:run
 npm run kysely-codegen
+```
 
-📚 API Documentation (Swagger)
+### 📚 API Documentation (Swagger)
 http://localhost:5000/docs
 
-🔐 Authentication Flow
+---
+
+## 🔐 Authentication Flow
+
 Client → /auth/login
 Server → Validate User → Return JWT Token
 Client → Calls Protected Routes with Bearer Token
 
-🧩 Import Alias Support (TSConfig + package.json)
-import { jwtPlugin } from "#plugins/jwt.plugin";
-import { UserRepository } from "#repositories/user.repository";
-import { bcryptConfig } from "#configs/bcrypt.config";
-import { CustomError } from "#utilities/custom-error";
+---
 
-📜 License
+## 🧩 Import Alias Support
+
+```ts
+import { bcryptConfig } from '#configs/bcrypt.config';
+import { jwtPlugin } from '#plugins/jwt.plugin';
+import { UserRepository } from '#repositories/user.repository';
+import { CustomError } from '#utilities/custom-error';
+```
+
+---
+
+## 📝 Commitlint Configuration (For Git Commits)
+
+The repository uses **commitlint** to enforce conventional commit messages.
+
+`.commitlintrc.json` file:
+
+### ✔️ How to Use These Commit Types
+
+Example commit messages:
+
+- `feat: user login API added`
+- `fix: pagination crash issue resolved`
+- `docs: updated README with commitlint rules`
+- `review: PR feedback changes added`
+- `chore: dependencies updated`
+
+---
+
+## 📜 License
+
 Licensed under the ISC License.
-Developed by Syed Taqiuddin.
+Developed by **Syed Taqiuddin**.
 
-🎉 Ready for Production
-This boilerplate is ideal for:
+---
 
-• SaaS backends
-• Admin panels
-• Mobile app APIs
-• Microservices
-• Authentication-based systems
+🎉 Ready for Production — Build Anything:
+
+- SaaS Backends
+- Admin Panels
+- Mobile App APIs
+- Microservices
+- Authentication Systems
