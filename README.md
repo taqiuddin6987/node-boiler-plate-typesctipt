@@ -159,8 +159,8 @@ A clean, scalable, and production-ready **Fastify (v5) + PostgreSQL + Kysely ORM
 
 ```
 PROTOCOL = http
-PORT=5000
-HOST = "0.0.0.0"
+PORT=3000
+HOST = "<your-host>"
 DOMAIN = "<yout-domain>"
 BASEPATH = "<your-basepath>"
 DB_HOST = "<your-db-host>"
@@ -196,7 +196,7 @@ npm run kysely-codegen
 ```
 
 ### 📚 API Documentation (Swagger)
-http://localhost:5000/docs
+http://localhost:3000/documentation
 
 ---
 
@@ -251,4 +251,5 @@ Developed by **Syed Taqiuddin**.
 - Mobile App APIs
 - Microservices
 - Authentication Systems
+
 
